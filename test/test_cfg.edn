@@ -1,0 +1,8 @@
+{
+:postgres_dir  "/usr/lib/postgresql/9.3/bin/"
+; database params
+:db_host  "localhost"
+:db_name  "dbtools"
+:db_temp_dir  "/tmp/"
+:db_file  "/tmp/questra.backup"
+}

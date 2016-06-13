@@ -10,3 +10,11 @@ pom.xml.asc
 .lein-plugins/
 .lein-failures
 .nrepl-port
+/.lein-env
+/DbTools.bbl
+/DbTools.pdf
+/DbTools.pyg
+/DbTools.tex
+/auto/DbTools.el
+/dev/Dan.edn
+/log/dev.log*
