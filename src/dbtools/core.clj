@@ -3,6 +3,7 @@
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
    [dbtools.utils :as utl]
+   [dbtools.dbtools :as dbu]
    [clojure.tools.logging :as log]
    [clojure.test :refer :all]
    )
@@ -27,10 +28,11 @@
    ["-f" "--db_file FILE" "Database absolute file name - for the 'backup'/'restore' commands"]
    ["-h" "--help"]
    ["-p" "--db_password PASS" "Database user password"]
-   ["-r" "--resource PATH" "Resources root full path"]
+   ["-r" "--resource PATH" "Resources root  path"]
    ["-s" "--db_schema" "Create database backup file only for schema, not data; optional, used only by the 'backup' command"]
    ["-t" "--table NAME" "The table(s) name(s) (comma separated if there are many tables) to export into csv file; mandatory, used only by the 'export' command."]
    ["-u" "--db_user USER" "Database user"]
+   ["-k" "--clear_table" "Clear table before import"]
    ["-v" "--db_version NAME" "Database version string using this format 'DDD.dd', where 'DDD' is the major version number and 'dd' is the minor version number; optional, used only by the 'migrate' command"]
    ])
 
@@ -96,8 +98,9 @@
       (not= (count arguments) 1) (exit 1 (usage summary))
       errors (exit 1 (error-msg errors)))
     ;; Execute program with options
-    (let [act (partial action (utl/set-config options))]
+    (let [act (partial action (dbu/set-config options))]
       (case (first arguments)
-        ;; "create" (act create "Database created.")
+        "delete" (act dbu/delete-db "Database deleted.")
+        "create" (act dbu/create-db "Database created.")
         ;; "migrate" (act migrate "Database migrated.")
         (exit 1 (usage summary))))))
