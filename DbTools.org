@@ -2,25 +2,6 @@
 #+DESCRIPTION: Software Specifications
 #+STARTUP: overview
 
-* Revisions History
-
-#+attr_latex: :align |r|l|l|l|
-|----------+--------------+----------------------+--------------|
-| REVISION | AUTHOR       | CHANGES MADE         | DATE REVISED |
-|----------+--------------+----------------------+--------------|
-|      0.1 | Dan Pomohaci | initial version      |   2015-05-12 |
-|      0.2 | Dan Pomohaci | first github version |   2016-06-06 |
-|----------+--------------+----------------------+--------------|
-
-* Introduction
-** Purpose
-
-This document contains all informations related to DbTools application.
-
-** Intended Audience
-
-Internal use, only for developers.
-
 * Requirements Analysis
 
 ** Application Purpose
@@ -72,7 +53,7 @@ Internal use, only for developers.
 
 *** Cofiguration file structure
 
-  The application default configuration file is =.dbtools.cfg=. The configuration file is a plain properties file.
+  The application default configuration file is =.dbtools.edn=. The configuration file is an edn file.
 
 
   The following parameters are defined:
@@ -101,34 +82,27 @@ Internal use, only for developers.
   #+BEGIN_SRC sh
   dbtools create
   #+END_SRC
-- Creates an empty database using the configuration file "DbTest.cfg"
+- Creates an empty database using the configuration file "DbTest.edn"
   #+BEGIN_SRC sh
-  dbtools -c DbTest.cfg create
+  dbtools -c DbTest.edn create
   #+END_SRC
 
 **** The =migrate= command
 
     - Migrates a provided database using a provided configuration up to the last existing migration
       #+BEGIN_SRC sh
-run -d testdbclaudia -c dev/Claudia.cfg migrate
+run -d testdb -c dev/Dan.edn migrate
       #+END_SRC
     - Migrates a provided database using a provided configuration up to the provided migration version
       #+BEGIN_SRC sh
-run -d testdbclaudia -c dev/Claudia.cfg -v 002.01 migrate
-      #+END_SRC
-
-**** The =upgrade= command
-
-    - Upgrades the provided database and using default configuration file =QDb.cfg= with sql commands and static data defined in the provided path
-      #+BEGIN_SRC sh
-run -r C:/projects/qdb/test/resources -d testdbclaudia upgrade
+run -d testdb -c dev/Dan.edn -v 5 migrate
       #+END_SRC
 
 **** The =version= command
 
     - Gets the current migration version of provided database
       #+BEGIN_SRC sh
-run -d testdbclaudia version
+run -d testdb version
       #+END_SRC
     - Gets the current migration version of database defined in the default configuration file
       #+BEGIN_SRC sh
@@ -137,11 +111,11 @@ run version
 
 **** The =delete= command
 
-    - Deletes a provided database using a specific configuration file
+    - Deletes a provided database using a specific configuration file:
       #+BEGIN_SRC sh
-run -d testdbclaudia -c dev/Claudia.cfg delete
+run -d testdb -c dev/Dan.edn delete
       #+END_SRC
-    - Deletes a database defined in the default configuration file =Db.cfg=
+    - Deletes a database defined in the default configuration file:
       #+BEGIN_SRC sh
 run delete
       #+END_SRC
@@ -206,7 +180,6 @@ run -d testdbclaudia -c dev/Claudia.cfg -p c:/tmp/test_import/ -t centers -k imp
 
 * Implementation
 
-* References
 
 bibliography:~/pers/bibliography/dpom.bib 
 bibliographystyle:unsrt
