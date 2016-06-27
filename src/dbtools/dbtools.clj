@@ -144,7 +144,7 @@
 (deftest get-sql-commands-test
   (is (=  ["DROP TABLE IF EXISTS dbversion;"
            "CREATE TABLE dbversion\n(\nversion integer NOT NULL,\ninstall_date timestamp with time zone NOT NULL,\ncomments character varying(256),\nCONSTRAINT dbversion_pkey PRIMARY KEY (version)\n)\nWITH (\nOIDS=FALSE\n);"]
-          (get-sql-commands "test/001_dbversion.sql" ))))
+          (get-sql-commands "test/01_dbversion.sql" ))))
 
 (defn make-db-spec
   [config]
@@ -172,6 +172,11 @@
     ORDER BY tablename;"])
 
 (defn get-query
+  "Adds to system map a query result.
+  params: system, the sytem map (used key :db_conn)
+          query, a sql query (string)
+          skey, the key for the result
+  returns: [updated_system err] where updated_system = system + {skey result}."
   [system query skey]
   (utl/with-checked-errors
     (sql/query (:db_conn system)
@@ -194,12 +199,12 @@
 
 (deftest exec-sql-commands-test
   (let [[ret err] (with-test-db
-                    #(exec-sql-commands % "test/001_dbversion.sql")
+                    #(exec-sql-commands % "test/01_dbversion.sql")
                     #(get-query % get_tables_query :resultset))]
     (is (= [{:tablename "dbversion"}] (:resultset ret)) "resultset")
     (is (nil? err) "error value")))
 
-;; Functions related to the static data files
+;;; Functions related to the static data files
 
 (defn csv-file?
   [filename]
@@ -211,7 +216,7 @@
   (second (re-find csv_filename_pattern (.getName (io/file filename)))))
 
 (deftest get-tablename-test
-  (is (= "dbversion" (get-tablename "test/001_dbversion.csv"))
+  (is (= "dbversion" (get-tablename "test/01_dbversion.csv"))
       "normal filename")
   (is (= "dbversion" (get-tablename "test/dbversion.csv"))
       "filename without prefix numbers")
@@ -247,9 +252,9 @@
 
 (deftest import-csv-file-test
   (let [[ret err] (with-test-db
-                    #(exec-sql-commands % "test/001_dbversion.sql")
-                    #(exec-sql-commands % "test/002_users.sql")
-                    #(import-csv-file % "test/002_users.csv")
+                    #(exec-sql-commands % "test/01_dbversion.sql")
+                    #(exec-sql-commands % "test/02_users.sql")
+                    #(import-csv-file % "test/02_users.csv")
                     #(get-query % get_tables_query :tables)
                     #(get-query % get_users_query :users))]
     (is (= [{:tablename "dbversion"} {:tablename "users"}] (:tables ret)) "tables")
@@ -266,7 +271,10 @@
            (:users ret)) "users")
     (is (nil? err) "error value")))
 
-;;; Actions
+
+
+
+;;; Functions related to populate the database
 
 (defn- process-file
   [[system err] fname]
@@ -283,7 +291,7 @@
   params: - system, the system map (used keys :resource :db_conn)
   returns: [sytem err]  "
   [system]
-  (let [{:keys [resource db_conn]} system
+  (let [{:keys [resource db_conn]} system 
         listfile (io/file  resource list_file_name)]
     (if-not (.exists listfile)
       [system :missing_list_file]
@@ -309,6 +317,42 @@
            (:users ret)) "users")
     (is (nil? err) "error value")))
 
+;;; Functions related to versioning
+
+(def get_version_query
+  ["SELECT *
+    FROM dbversion
+    ORDER BY version DESC LIMIT 1;"])
+
+(defn get-version
+  "Get database version.
+  params: system, system map (used keys :db_conn )
+  returns: [updated_system err], the updated_system is sytem with a :version key append to it"
+  [system]
+  (get-query system get_version_query :version))
+
+(deftest get-version-test
+  (let [[ret err] (with-test-db
+                    #(fill-db %)
+                    get-version)]
+    (is (= [{:version 1,
+             :install_date #inst "2016-06-27T09:12:30.000000000-00:00",
+             :comments "initial version"}]
+           (:version ret)) "version")
+    (is (nil? err) "error value")))
+
+;;; Actions
+
+(defmacro with-db
+  [system & body]
+  `(let [ret# (utl/err->> ~system
+                          (fn [cfg#]
+                            (sql/with-db-transaction [dbconn# (make-db-spec cfg#)]
+                              (utl/err->> (assoc cfg# :db_conn dbconn#)
+                                          ~@body
+                                          ))))]
+     ret#))
+
 (defn create-db
   "Create a new database and to it intitial data.
   params: system, the system map
@@ -316,6 +360,15 @@
   [system]
   (utl/err->> system
               create-empty-db
-              (fn [cfg#]
-                (sql/with-db-transaction [dbconn# (make-db-spec cfg#)]
-                  (fill-db (assoc cfg# :db_conn dbconn#))))))
+              #(with-db %
+                 fill-db
+                 get-version)))
+
+(defn get-db-version
+  "Get database version.
+  params: system, the system map
+  returns: [system errors]"
+  [system]
+  (utl/with-checked-errors
+  (with-db system
+    get-version)))

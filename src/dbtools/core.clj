@@ -84,10 +84,12 @@
             actionfn - the function which run the action
             okmsg - the message to display if the action finishes normally"
   [options actionfn okmsg]
-  (let [[_ err] (actionfn options)]
+  (let [[ret err] (actionfn options)]
     (if err
       (println (str  "exception: " err))
-      (print-msg options okmsg))))
+      (let [{:keys [version install_date comments]} (first (:version ret))]
+        (print-msg options (format "db version: %d (%s) installed %s" version comments install_date))
+        (print-msg options okmsg)))))
 
 (defn -main
   [& args]
@@ -102,5 +104,6 @@
       (case (first arguments)
         "delete" (act dbu/delete-db "Database deleted.")
         "create" (act dbu/create-db "Database created.")
+        "version" (act dbu/get-db-version "")
         ;; "migrate" (act migrate "Database migrated.")
         (exit 1 (usage summary))))))

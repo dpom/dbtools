@@ -1,3 +1,4 @@
-001_dbversion.sql
-002_users.sql
-002_users.csv
+01_dbversion.sql
+02_users.sql
+02_users.csv
+99_setversion.sql
