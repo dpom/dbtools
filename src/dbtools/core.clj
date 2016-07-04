@@ -33,7 +33,9 @@
    ["-t" "--table NAME" "The table(s) name(s) (comma separated if there are many tables) to export into csv file; mandatory, used only by the 'export' command."]
    ["-u" "--db_user USER" "Database user"]
    ["-k" "--clear_table" "Clear table before import"]
-   ["-v" "--db_version NAME" "Database version string using this format 'DDD.dd', where 'DDD' is the major version number and 'dd' is the minor version number; optional, used only by the 'migrate' command"]
+   ["-v" "--db_version NUMBER" "Database version number (unsigned integer); optional, used only by the 'migrate' command"
+    :parse-fn #(Integer/parseInt %)
+    :validate [#(< 1 % 0x1000) "Must be a number between 1 and 4096"]]
    ])
 
 (defn usage
@@ -88,7 +90,10 @@
     (if err
       (println (str  "exception: " err))
       (let [{:keys [version install_date comments]} (first (:version ret))]
-        (print-msg options (format "db version: %d (%s) installed %s" version comments install_date))
+        (if version
+          (print-msg options
+                     (format "db version: %d (%s) installed %s"
+                             version comments install_date)))
         (print-msg options okmsg)))))
 
 (defn -main
@@ -102,8 +107,10 @@
     ;; Execute program with options
     (let [act (partial action (dbu/set-config options))]
       (case (first arguments)
-        "delete" (act dbu/delete-db "Database deleted.")
-        "create" (act dbu/create-db "Database created.")
+        "delete" (act dbu/delete-db "The database deleted.")
+        "create" (act dbu/create-db "The database created.")
+        "migrate" (act dbu/migrate-db "The database migrated.")
+        "update" (act dbu/update-db "The database updated.")
         "version" (act dbu/get-db-version "")
         ;; "migrate" (act migrate "Database migrated.")
         (exit 1 (usage summary))))))

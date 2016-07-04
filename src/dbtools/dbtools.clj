@@ -20,6 +20,9 @@
 (def csv_file_extension ".csv")
 (def csv_filename_pattern #"[0-9_]*(.+).csv")
 (def list_file_name "files.lst")
+(def migrations_file_name "migrations.lst")
+(def migrations_line_pattern #"([0-9_]+)\s+(.+)")
+
 
 ;;; Config
 
@@ -296,7 +299,7 @@
     (if-not (.exists listfile)
       [system :missing_list_file]
       (with-open [r (io/reader listfile)]
-        (reduce process-file [system nil] (map #(str resource %) (line-seq r)))))))
+        (reduce process-file [system nil] (map #(io/file resource %) (line-seq r)))))))
 
 (deftest fill-db-test
   (let [[ret err] (with-test-db
@@ -317,7 +320,7 @@
            (:users ret)) "users")
     (is (nil? err) "error value")))
 
-;;; Functions related to versioning
+;;; Functions related to versioning and migrations
 
 (def get_version_query
   ["SELECT *
@@ -341,17 +344,111 @@
            (:version ret)) "version")
     (is (nil? err) "error value")))
 
+(defn set-migrations-map
+  "Set migrations map.
+  params: system, system map (used keys :resource)
+  returns: [updated_system err] where updated_system = system + :migrations"
+  [system]
+  (let [resource (:resource system)
+        migfile (io/file resource migrations_file_name)]
+    (if-not (.exists migfile)
+      [system :missing_migrations_file]
+      (with-open [r (io/reader migfile)]
+        [(assoc system :migrations (reduce (fn [migs item]
+                                             (let [[_ v f] (re-find migrations_line_pattern item)]
+                                               (assoc migs (Integer/valueOf v) (.getCanonicalPath (io/file resource f)))))
+                                           {}
+                                           (line-seq r)))
+         nil]))))
+
+(deftest set-migrations-map-test
+  (let [config (set-config {:config (env/env :config-file)})
+        [ret err] (set-migrations-map config)]
+      (is (nil? err) "error")
+      (is (= [20 30 40] (keys (:migrations ret))) "migrations")))
+
+
+(defn get-active-migrations
+  "Returns the migrations versions to execute as sorted set."
+  [system]
+  (let [{:keys [version migrations db_version]} system
+        ver (get (first version) :version 1)]
+    (into (sorted-set) (filter (fn [x]
+                                 (and (> x ver)
+                                      (or (nil? db_version) (<= x db_version))))
+                               (keys migrations)))))
+
+(deftest get-active-migrations-test
+  (is (= #{2 3} (get-active-migrations {:version [{:version 1}] :db_version 3 :migrations {2 "mig2" 3 "mig3" 4 "mig4" 5 "mig5"}} )) "standard")
+  (is (= #{} (get-active-migrations {:version [{:version 6}] :db_version 3 :migrations {2 "mig2" 3 "mig3" 4 "mig4" 5 "mig5"}} )) "no migrations")
+  (is (= #{2 3 4 5} (get-active-migrations {:version [{:version 1}] :migrations {2 "mig2" 3 "mig3" 4 "mig4" 5 "mig5"}} )) "missing db_version")
+      )
+
+
+
+(defn migrate
+  "Migrate the database.
+  params: system, system map (used keys :version :migrations)
+  returns: [system err]"
+  [system]
+  (utl/with-checked-errors
+    (let [{:keys [migrations]} system
+          migrseq (get-active-migrations system)]
+      (log/debugf "migrate: migrseq = %s" migrseq)
+      (reduce (fn [[sys err] ver]
+                (if err
+                  (reduced [sys err])
+                  (let [fname (get migrations ver)]
+                    (log/infof "Migrate the database to %d" ver)
+                    (fill-db (assoc sys :resource fname)))))
+              [system nil]
+              migrseq))))
+
+(deftest migrate-test
+  (let [[ret err] (with-test-db
+                    fill-db
+                    set-migrations-map
+                    get-version
+                    migrate 
+                    ;; #(do (log/debug "migrate ok") [% nil])
+                    get-version
+                    ;; #(do (log/debug "get-version ok") [% nil])
+                    #(get-query % get_tables_query :tables)
+                    )]
+    (is (= [{:tablename "dbversion"}
+             {:tablename "test2"}
+             {:tablename "test3"}
+            {:tablename "users"}]
+           (:tables ret))
+        "tables")
+    (is (= 40 (:version (first (:version ret)))) "version") 
+    (is (nil? err) "error value")))
+
+
+
 ;;; Actions
+
+;; (defmacro with-db
+;;   [system & body]
+;;   `(let [ret# (utl/err->> ~system
+;;                           (fn [cfg#]
+;;                             (sql/with-db-transaction [dbconn# (make-db-spec cfg#)]
+;;                                (utl/err->> (assoc cfg# :db_conn dbconn#)
+;;                                           ~@body
+;;                                           ))))]
+;;      ret#))
 
 (defmacro with-db
   [system & body]
-  `(let [ret# (utl/err->> ~system
-                          (fn [cfg#]
-                            (sql/with-db-transaction [dbconn# (make-db-spec cfg#)]
-                              (utl/err->> (assoc cfg# :db_conn dbconn#)
-                                          ~@body
-                                          ))))]
-     ret#))
+  `(let [sys# ~system
+         db# (make-db-spec sys#)] 
+     (sql/with-db-transaction [dbconn# db#]
+       (let [cfg# (assoc sys# :db_conn dbconn#)
+             ret# (utl/err->> cfg# 
+                   ~@body)]
+        (when (second ret#) (sql/db-set-rollback-only! db#))
+     ret#))))
+
 
 (defn create-db
   "Create a new database and to it intitial data.
@@ -372,3 +469,27 @@
   (utl/with-checked-errors
   (with-db system
     get-version)))
+
+
+(defn update-db
+  "Update the database.
+  params: system, the system map
+  returns: [system errors]"
+  [system]
+  (utl/with-checked-errors
+    (with-db system
+      fill-db 
+      get-version)))
+
+
+(defn migrate-db
+  "Migrate the database.
+  params: system, the system map
+  returns: [system errors]"
+  [system]
+  (utl/with-checked-errors
+    (with-db system
+      set-migrations-map
+      get-version
+      migrate 
+      get-version)))

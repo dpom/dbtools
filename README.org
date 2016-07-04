@@ -11,7 +11,6 @@
 
    The tool also provides commands for getting the current database migration version and updating database with
    sql scripts and csv static data files from a provided resources path.
-   These can be very useful for a developer that uses an empty database but containing a minimal data required by application.
 
    Other implemented commands are the database deletion, database backup, database restore
    and also the table(s) records export to csv file(s) and import from csv file.
@@ -46,9 +45,9 @@
    - ["-p" "--db_password PASS" "Database user password"]
    - ["-r" "--resource PATH" "Resources root full path"]
    - ["-s" "--db_schema" "Create database backup file only for schema, not data; optional, used only by the 'backup' command"]
-   - ["-t" "--table NAME" "The table(s) name(s) (comma separated if there are many tables) to export into csv file; mandatory, used only by the 'export' command."]
+   - ["-t" "--table NAME" "The table(s) name(s) (comma separated if there are many tables) to export into csv file; used only by the 'export' command."]
    - ["-u" "--db_user USER" "Database user"]
-   - ["-v" "--db_version NAME" "Database version string using this format 'DDD.dd', where 'DDD' is the major version number and 'dd' is the minor version number; optional, used only by the 'migrate' command"]
+   - ["-v" "--db_version NUMBER" "Database version number (unsigned integer); optional, used only by the 'migrate' command"]
 
 
 *** Cofiguration file structure
@@ -180,9 +179,21 @@ run -d testdb -c dev/Dan.edn -p c:/tmp/test_import/ -t centers -k import
 
 * Implementation
 
+* Tasks
 
-bibliography:~/pers/bibliography/dpom.bib 
-bibliographystyle:unsrt
+ 
+** TODO Implement validation using clojure.spec lib   
+** DONE Reimplement migration-db action
+CLOSED: [2016-07-04 Mon 18:10]
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2016-07-04 Mon 18:10]
+:END:
+** TODO Reimplement backup-db and restore-db actions
+** TODO Reimplement import-db and export-db actions
+
+
+
+
 
 
 * Setup                                                              :noexport:
